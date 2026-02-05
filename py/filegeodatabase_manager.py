@@ -39,7 +39,7 @@ class LocalGDB(object):
 
     def clean(self):
 
-        if arcpy.Exists(self.gdb) and os.path.isdir(self.gdb):
+        if os.path.isdir(self.gdb) and arcpy.Exists(self.gdb):
             
             arcpy.Compact_management(self.gdb)
             shutil.rmtree(self.gdb, onerror=self._remove_readonly)   
@@ -55,3 +55,9 @@ class LocalGDB(object):
            return True
         else:
             return False
+
+    def copy(self
+            ,out_gdb):
+
+        shutil.copytree(self.gdb
+                       ,out_gdb)

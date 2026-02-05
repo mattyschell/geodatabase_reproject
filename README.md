@@ -7,4 +7,4 @@ ESRI developed an original version of this code and gifted it to us as a single 
 # You Will Need
 
 1. arcpy from ArcGIS Pro 
-2. ArcGIS Pro Topographic Production toolbox license
+2. [ArcGIS Pro Topographic Production toolbox license](https://pro.arcgis.com/en/pro-app/latest/tool-reference/topographic-production/topographic-production-toolbox-license.htm) (aka arcpy.topographic.xyz)

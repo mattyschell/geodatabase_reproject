@@ -2,7 +2,7 @@ import unittest
 import os
 from pathlib import Path
 
-import filegeodatabasemanager
+import filegeodatabase_manager
 
 class FileGeodatabaseTestCase(unittest.TestCase):
 
@@ -14,11 +14,15 @@ class FileGeodatabaseTestCase(unittest.TestCase):
                                        ,'testdata')
         self.testgdbpath = os.path.join(self.testdatadir
                                        ,'testsample.gdb')
-        self.testgdb = filegeodatabasemanager.LocalGDB(self.testgdbpath)
+        self.testgdb = filegeodatabase_manager.LocalGDB(self.testgdbpath)
+        self.tempgdb = filegeodatabase_manager.LocalGDB(
+                            os.path.join(self.tempdir
+                                        ,'tempsample.gdb'))
 
     def tearDown(self):
 
         self.testgdb.clean()
+        self.tempgdb.clean()
 
     @classmethod
     def tearDownClass(self):
@@ -31,11 +35,13 @@ class FileGeodatabaseTestCase(unittest.TestCase):
         self.assertEqual(self.testgdb.basename,'testsample')
         self.testgdb.create()
         self.assertTrue(self.testgdb.exists())
+        self.testgdb.clean()
 
     def test_blocks(self):
 
         self.testgdb.create()
         self.assertFalse(self.testgdb.has_locks())
+        self.testgdb.clean()
 
     def test_cclean(self):
 
@@ -43,10 +49,13 @@ class FileGeodatabaseTestCase(unittest.TestCase):
         self.testgdb.clean()
         self.assertFalse(self.testgdb.exists())
 
+    def test_dcopy(self):
 
-
-       
-
+        self.testgdb.create()
+        self.testgdb.copy(self.tempgdb.gdb)
+        self.assertTrue(self.tempgdb.exists())
+        self.tempgdb.clean()
+        self.testgdb.clean()
 
 if __name__ == '__main__':
     unittest.main()
