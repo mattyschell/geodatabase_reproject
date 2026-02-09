@@ -8,10 +8,10 @@ class ExcelFile(object):
     def __init__(self
                 ,excelfile):
 
-        self.xlsx = excelfile
-        self.wb   = None
+        self.xlsx                 = excelfile
+        self.workbook             = None
         self._license_checked_out = False
-        self._closed = False
+        self._closed              = False
 
     def checkoutlicense(self):
         if not self._license_checked_out:
@@ -42,29 +42,36 @@ class ExcelFile(object):
             pass
 
     def _save(self):
-        self.wb.save(self.xlsx)
+        self.workbook.save(self.xlsx)
 
     def _open(self):
-        self.wb = openpyxl.load_workbook(self.xlsx)
+        self.workbook = openpyxl.load_workbook(self.xlsx)
 
     def copy(self
             ,output_xlsx):
 
         self._open()
-        self.wb.save(output_xlsx)
+        self.workbook.save(output_xlsx)
+        outcopy = ExcelFile(output_xlsx)
+        outcopy._open()
+        return outcopy        
 
     def generate_from_geodatabase(self
                                  ,gdb):
 
-        arcpy.topographic.GenerateExcelFromGeodatabase(gdb
-                                                      ,self.xlsx)
-        self.wb = openpyxl.load_workbook(self.xlsx)
+        if not self.exists():
+            arcpy.topographic.GenerateExcelFromGeodatabase(gdb
+                                                          ,self.xlsx)
+        else:
+            raise RuntimeError('{0} already exists'.format(self.xlsx))
+
+        self.workbook = openpyxl.load_workbook(self.xlsx)
     
     def generate_to_geodatabase(self
                                ,gdb):
 
         # this generates an empty geodatabase
-        # globalids if present will be fresh and ESRI-managed 
+        # if specified globalid columns will be ESRI-managed 
         arcpy.topographic.GenerateGeodatabaseFromExcel(self.xlsx
                                                       ,gdb)
 
@@ -136,7 +143,7 @@ class ExcelFile(object):
         
         # update spatial reference in DatasetContainers sheet (col E)
         # all will point at srid 1
-        ws_dc = self.wb["DatasetContainers"]
+        ws_dc = self.workbook["DatasetContainers"]
         for row in ws_dc.iter_rows(min_row=2, min_col=5, max_col=5):
             for cell in row:
                 if cell.value and cell.value != -1:
@@ -145,7 +152,7 @@ class ExcelFile(object):
     def _update_object_classes(self):
 
         # set all object classes to srid 1
-        ws_oc = self.wb["ObjectClasses"]
+        ws_oc = self.workbook["ObjectClasses"]
         for row in ws_oc.iter_rows(min_row=2, min_col=10, max_col=10):
             for cell in row:
                 if cell.value and cell.value != -1:
@@ -155,21 +162,20 @@ class ExcelFile(object):
                                  ,srid):
 
         #update spatial reference by overwriting SpatialReferences worksheet
-        ws_sr = self.wb["SpatialReferences"]
+        ws_sr = self.workbook["SpatialReferences"]
         # iter_rows stops at no data
         for row in ws_sr.iter_rows(min_row=2):
             for cell in row:
                 cell.value = None
 
-        # this is the good spatial reference
-        for cell, value in self._get_srid_dictionary(srid): 
+        for cell, value in self._get_srid_dictionary(srid).items(): 
             ws_sr[cell] = value
 
     def update_all_spatial_reference(self
                                     ,srid):
 
         # update_all_spatial_reference will associates all data
-        # with one blessed srid
+        # with one blessed srid, resolution, and tolerance
         srid = int(srid)
         self._open()        
 
