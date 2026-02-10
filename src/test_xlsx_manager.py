@@ -2,6 +2,7 @@ import unittest
 import os
 import openpyxl
 from pathlib import Path
+import tempfile
 
 import filegeodatabase_manager
 import xlsx_manager
@@ -16,20 +17,19 @@ class XlsxManagerTestCase(unittest.TestCase):
             os.path.dirname(os.path.abspath(__file__))
            ,'testdata')
         # this geodatabase has one feature class nybb (borough) in 2263
-        self.ingdbpath = os.path.join(self.testdatadir
+        self.sourcepath = os.path.join(self.testdatadir
                                      ,'sample.gdb')
-        self.ingdb      = filegeodatabase_manager.LocalGDB(self.ingdbpath)
+        self.sourcegdb    = filegeodatabase_manager.LocalGDB(self.sourcepath)
         # the remainder do not yet exist
         self.testxlsxpath = os.path.join(self.tempdir
                                         ,'test.xlsx')        
-        self.testgdbpath  = os.path.join(self.tempdir
+        self.ingdbpath    = os.path.join(self.tempdir
                                         ,'test.gdb')
         self.outxlsxpath  = os.path.join(self.tempdir
                                         ,'out.xlsx')
         self.outgdbpath   = os.path.join(self.tempdir
                                         ,'out.gdb')
         self.outgdb      = filegeodatabase_manager.LocalGDB(self.outgdbpath)
-        #self.outxlsx     = xlsx_manager.ExcelFile(self.outxlsxpath)
 
     def setUp(self):
 
@@ -37,16 +37,15 @@ class XlsxManagerTestCase(unittest.TestCase):
         # the first instance should check out the topo production license
         self.testxlsx = xlsx_manager.ExcelFile(self.testxlsxpath)
         self.testxlsx.checkoutlicense()
-        self.ingdb.copy(self.testgdbpath)
-        self.testgdb  = filegeodatabase_manager.LocalGDB(self.testgdbpath)
+        self.sourcegdb.copy(self.ingdbpath)
+        self.ingdb  = filegeodatabase_manager.LocalGDB(self.ingdbpath)
 
     def tearDown(self):
 
-        self.testgdb.clean()
+        self.ingdb.clean()
         self.testxlsx.delete()
         self.testxlsx.checkinlicense()
-        self.outgdb.clean()
-        #self.outxlsx.delete()
+        #self.outgdb.clean()
 
     @classmethod
     def tearDownClass(self):
@@ -63,14 +62,14 @@ class XlsxManagerTestCase(unittest.TestCase):
 
     def test_bcreateanddelete(self):
 
-        self.testxlsx.generate_from_geodatabase(self.testgdb.gdb)
+        self.testxlsx.generate_from_geodatabase(self.ingdb.gdb)
         self.assertTrue(self.testxlsx.exists())
         self.testxlsx.delete()
         self.assertFalse(self.testxlsx.exists())
 
     def test_ccopy(self):
 
-        self.testxlsx.generate_from_geodatabase(self.testgdb.gdb)
+        self.testxlsx.generate_from_geodatabase(self.ingdb.gdb)
         outxlsx = self.testxlsx.copy(self.outxlsxpath)
         self.assertTrue(outxlsx.exists())
         outxlsx.delete()
@@ -78,18 +77,28 @@ class XlsxManagerTestCase(unittest.TestCase):
 
     def test_dgenerategeodatabase(self):
 
-        self.testxlsx.generate_from_geodatabase(self.testgdb.gdb)
+        self.testxlsx.generate_from_geodatabase(self.ingdb.gdb)
         self.testxlsx.generate_to_geodatabase(self.outgdb.gdb)
         self.assertTrue(self.outgdb.exists())
 
     def test_eupdatespatialreference(self):
 
-        self.testxlsx.generate_from_geodatabase(self.testgdb.gdb)
+        self.testxlsx.generate_from_geodatabase(self.ingdb.gdb)
         self.testxlsx.update_all_spatial_reference(6539)
         outxlsx = self.testxlsx.copy(self.outxlsxpath)
         self.assertEqual(outxlsx.workbook['SpatialReferences']['C2'].value
                         ,6539)
         outxlsx.delete()        
+
+    def test_fcopygeodatabase(self):
+
+        self.testxlsx.generate_from_geodatabase(self.ingdb.gdb)
+        self.testxlsx.copygeodatabase(self.ingdb.gdb
+                                     ,self.outgdb.gdb)
+        self.assertTrue(self.outgdb.exists())
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

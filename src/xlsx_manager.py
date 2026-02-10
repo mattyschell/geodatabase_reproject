@@ -1,7 +1,10 @@
 import os
 import arcpy
 import openpyxl
+from pathlib import Path
+import tempfile
 
+import filegeodatabase_manager
 
 class ExcelFile(object):
 
@@ -184,6 +187,33 @@ class ExcelFile(object):
         self._update_object_classes()
         
         self._save()
+
+    def copygeodatabase(self
+                       ,gdbin
+                       ,gdbout):
+
+        # given an input geodatabase and this excel workbook
+        # create and load an output geodatabase
+        self.generate_to_geodatabase(gdbout)
+
+        # we dont care about this thing (yet?) make it and trash it
+        object_map_gdb = filegeodatabase_manager.LocalGDB(
+            os.path.join(tempfile.gettempdir()
+                        ,'old_to_new.gdb'))
+
+        if object_map_gdb.exists():
+            object_map_gdb.clean()
+
+        arcpy.topographic.CreateCrossReferenceGeodatabase(gdbin
+                                                         ,gdbout
+                                                         ,object_map_gdb.gdb)
+
+        arcpy.topographic.LoadData(object_map_gdb.gdb
+                                  ,gdbin
+                                  ,gdbout)
+
+        object_map_gdb.clean()
+        
     
 
 
