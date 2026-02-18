@@ -45,7 +45,7 @@ class XlsxManagerTestCase(unittest.TestCase):
         self.ingdb.clean()
         self.testxlsx.delete()
         self.testxlsx.checkinlicense()
-        #self.outgdb.clean()
+        self.outgdb.clean()
 
     @classmethod
     def tearDownClass(self):

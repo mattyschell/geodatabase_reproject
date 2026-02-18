@@ -6,5 +6,6 @@ if exist "%PYTHON1%" (
 ) else if exist "%PYTHON2%" (
     set PROPY=%PYTHON2%
 ) 
-call %PROPY% .\py\test_filegeodatabase_manager.py
-call %PROPY% .\py\test_xlsx_manager.py
+call %PROPY% .\src\test_filegeodatabase_manager.py
+call %PROPY% .\src\test_xlsx_manager.py 
+call %PROPY% .\src\test_relationshipclass_manager.py 

@@ -1,6 +1,7 @@
 import unittest
 import os
 from pathlib import Path
+import tempfile
 
 import filegeodatabase_manager
 
@@ -9,7 +10,7 @@ class FileGeodatabaseTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(self):
 
-        self.tempdir = Path(os.environ['TEMP'])
+        self.tempdir = Path(tempfile.gettempdir())
         self.testdatadir = os.path.join(os.path.dirname(os.path.abspath(__file__))
                                        ,'testdata')
         self.testgdbpath = os.path.join(self.testdatadir
