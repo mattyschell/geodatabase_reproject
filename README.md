@@ -2,7 +2,7 @@
 
 Reproject a file geodatabase. Reprojection includes correcting bad resolution and tolerance values that shadow data for decades.  Friends, this our shadow escape, our rules, the trick is never to be afraid.
 
-ESRI developed an original version of this code and gifted it to us as a single python function snippet. We naively wrapped it up into py\stash\reprojectgeodatabase.py. When further development of reprojectgeodatabase.py proved unworkable we migrated to this standalone repository.
+ESRI developed an original version of this code and gifted it to us as a single ~500 line python function. We naively wrapped that up as \stash\reprojectgeodatabase.py. Further development of a single function with several different goals and object types proved unworkable. We then migrated to this standalone repository with tests and looser coupling of components.
 
 # You Will Need
 

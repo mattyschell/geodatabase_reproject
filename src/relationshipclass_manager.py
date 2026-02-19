@@ -1,12 +1,6 @@
 import arcpy
 import os
-import stat
-import shutil
-import glob
-from pathlib import Path
 from pprint import pformat
-
-#import filegeodatabase_manager
 
 class RelationshipClassManager(object):
 
@@ -15,11 +9,11 @@ class RelationshipClassManager(object):
                 ,name
                 ,origin_class = None
                 ,destination_class = None
-                ,relationship_type = None
-                ,cardinality = None
+                ,relationship_type = 'SIMPLE'
+                ,cardinality = 'ONE_TO_MANY'
                 ,origin_primary_key=None
                 ,destination_foreign_key=None
-                ,attributed=False
+                ,attributed='NONE'
                 ,attributed_table=None
                 ,message_direction='NONE'
                 ,notification='NONE'):
@@ -31,81 +25,110 @@ class RelationshipClassManager(object):
 
         self.origin_class            = origin_class
         self.destination_class       = destination_class
-        self.relationship_type       = relationship_type
-        self.cardinality             = cardinality
+        self.relationship_type       = (relationship_type or 'SIMPLE').upper()
+        self.cardinality             = (cardinality or 'ONE_TO_MANY').upper()
         self.origin_primary_key      = origin_primary_key
         self.destination_foreign_key = destination_foreign_key
         self.attributed              = attributed
         self.attributed_table        = attributed_table
-        self.message_direction       = message_direction
-        self.notification            = notification
+        self.message_direction       = (message_direction or 'NONE').upper()
+        self.notification            = (notification or 'NONE').upper()
+
+        self.forward_label           = ''
+        self.backward_label          = ''
+        self.origin_foreign_key      = ''
+        self.destination_primary_key = ''
 
     def exists(self):
-        print(self.relclasspath)
         if arcpy.Exists(self.relclasspath):
             return True
         else:
             return False
 
-#    def _describe(self):
-#    
-#        # returns a dict based on what exists in the gdb
-#
-#        if not self.exists():
-#            raise FileNotFoundError(
-#                'Relationship class does not exist: {0}'.format(self.relclasspath)
-#            )
-#
-#        desc = arcpy.Describe(self.relclasspath)
-#
-#        info = {
-#            "name": desc.name,
-#            "path": self.relclasspath,
-#            "dataType": desc.dataType,  # should be "RelationshipClass"
-#            "originClassNames": desc.originClassNames,
-#            "destinationClassNames": desc.destinationClassNames,
-#            "relationshipType": desc.relationshipType,  # SIMPLE or COMPOSITE
-#            "cardinality": desc.cardinality,            # ONE_TO_MANY, etc.
-#            "isAttributed": desc.isAttributed,
-#            "attributedTable": getattr(desc, "attributedTable", None),
-#            "originPrimaryKey": desc.originPrimaryKey,
-#            "destinationPrimaryKey": desc.destinationPrimaryKey,
-#            "originForeignKey": desc.originForeignKey,
-#            "destinationForeignKey": desc.destinationForeignKey,
-#            "notification": desc.notification,
-#            "messageDirection": desc.messageDirection,
-#        }
-#
-#        return info
-#
-#    def describe_pretty(self): 
-#
-#        # returns a string
-#        return pformat(self._describe())
-#
-#    def delete(self):
-#
-#        if self.exists():
-#            arcpy.management.Delete(self.relclasspath)
-#
-#    def create(self):
-#
-#        origin_path = os.path.join(self.geodatabase
-#                                  ,self.origin_class) 
-#                                  
-#        dest_path = os.path.join(self.geodatabase
-#                                ,self.destination_class)
-#
-#        arcpy.management.CreateRelationshipClass(origin_path
-#                                                ,dest_path
-#                                                ,self.relclasspath
-#                                                ,self.relationship_type
-#                                                ,"" # forward label (optional)
-#                                                ,"" # backward label (optional) 
-#                                                ,self.cardinality
-#                                                ,self.attributed
-#                                                ,self.attributed_table if self.attributed else ""
-#                                                ,self.origin_primary_key
-#                                                ,self.destination_foreign_key
-#                                                ,self.message_direction
-#                                                ,self.notification)
+    def describe_in_gdb(self):
+    
+        # describe the geodatabase not the instance
+        # returns a dict 
+
+        if not self.exists():
+            raise FileNotFoundError(
+                'Relationship class does not exist: {0}'.format(self.relclasspath)
+            )
+
+        desc = arcpy.Describe(self.relclasspath)
+
+        # for some reason ESRI doesnt expose properties like originPrimaryKey
+        # or destinationForeignKey on the relationship class. They are at 
+        # the geodatabase level I guess?  
+        info = {
+            "name": desc.name,
+            "path": self.relclasspath,
+            "dataType": desc.dataType,
+            "originClassNames": desc.originClassNames,
+            "destinationClassNames": desc.destinationClassNames,
+            "cardinality": desc.cardinality,
+            "isAttributed": desc.isAttributed,
+            "attributedTable": getattr(desc, "attributedTable", None),
+        }
+
+        return info
+
+    def describe_in_gdb_pretty(self): 
+
+        # returns a string
+        return pformat(self.describe_in_gdb()
+                      ,indent=2
+                      ,width=80)    
+
+    def delete(self):
+
+        if self.exists():
+            arcpy.management.Delete(self.relclasspath)
+
+    def create(self):
+
+        if self.attributed != 'NONE':
+            raise ValueError('Not ready for attributed yet')
+
+        origin_path = os.path.join(self.geodatabase
+                                  ,self.origin_class)              
+        dest_path = os.path.join(self.geodatabase
+                                ,self.destination_class)
+
+        # The order of these inputs and the acceptable values
+        # requires both santitation and a santiarium
+
+        relationship_type = (self.relationship_type or "SIMPLE").upper()
+        cardinality = (self.cardinality or "ONE_TO_MANY").upper()
+        forward_label = self.forward_label or ""
+        backward_label = self.backward_label or ""
+        attributed_table = self.attributed_table if self.attributed else ""
+        origin_pk = self.origin_primary_key or ""
+        origin_fk = ""
+        dest_pk = self.destination_primary_key or ""   # <-- REQUIRED
+        dest_fk = self.destination_foreign_key or ""
+
+        if relationship_type not in {"SIMPLE", "COMPOSITE"}:
+            raise ValueError(
+                'Invalid relationship_type: {0}'.format(relationship_type))
+        if cardinality not in {"ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_MANY"}:
+            raise ValueError('Invalid cardinality {0}'.format(cardinality))
+
+        # This is the ArcGIS Pro signature as of 20260218
+        arcpy.management.CreateRelationshipClass(
+            origin_path,
+            dest_path,
+            self.relclasspath,
+            relationship_type, 
+            forward_label, 
+            backward_label, 
+            self.message_direction,  
+            cardinality,
+            self.attributed,
+            origin_pk,
+            origin_fk,
+            dest_pk,
+            dest_fk
+        )
+
+
