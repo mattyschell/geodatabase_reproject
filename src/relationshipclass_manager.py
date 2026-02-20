@@ -29,7 +29,7 @@ class RelationshipClassManager(object):
         self.cardinality             = (cardinality or 'ONE_TO_MANY').upper()
         self.origin_primary_key      = origin_primary_key
         self.destination_foreign_key = destination_foreign_key
-        self.attributed              = attributed
+        self.attributed              = (attributed or 'NONE').upper()
         self.attributed_table        = attributed_table
         self.message_direction       = (message_direction or 'NONE').upper()
         self.notification            = (notification or 'NONE').upper()
@@ -39,11 +39,13 @@ class RelationshipClassManager(object):
         self.origin_foreign_key      = ''
         self.destination_primary_key = ''
 
-    def exists(self):
-        if arcpy.Exists(self.relclasspath):
-            return True
-        else:
-            return False
+    def copyto(self
+              ,geodatabase):
+
+        output = self.__class__.__new__(self.__class__)
+        output.__dict__ = self.__dict__.copy()
+        output.geodatabase = geodatabase
+        return output
 
     def describe_in_gdb(self):
     
@@ -60,6 +62,7 @@ class RelationshipClassManager(object):
         # for some reason ESRI doesnt expose properties like originPrimaryKey
         # or destinationForeignKey on the relationship class. They are at 
         # the geodatabase level I guess?  
+        # add more here if useful
         info = {
             "name": desc.name,
             "path": self.relclasspath,
@@ -73,62 +76,92 @@ class RelationshipClassManager(object):
 
         return info
 
-    def describe_in_gdb_pretty(self): 
+    def describe_instance(self):
+        
+        return self.__dict__.copy()
+
+    def describe_pretty(self
+                       ,data: dict): 
 
         # returns a string
-        return pformat(self.describe_in_gdb()
+        return pformat(data
                       ,indent=2
-                      ,width=80)    
+                      ,width=80)  
+
+    def create(self):
+
+        origin_path, dest_path = self._build_paths()
+
+        # The order of these inputs and the acceptable values
+        # requires both santitation and a sanitarium
+        params = self._sanitize_params()
+        self._validate_params(params)
+
+        # This is the ArcGIS Pro signature as of 20260218
+        arcpy.management.CreateRelationshipClass(
+            origin_path
+           ,dest_path
+           ,self.relclasspath
+           ,params["relationship_type"]
+           ,params["forward_label"]
+           ,params["backward_label"]
+           ,self.message_direction
+           ,params["cardinality"]
+           ,params["attributed"]
+           ,params["origin_pk"]
+           ,params["origin_fk"]
+           ,params["dest_pk"]
+           ,params["dest_fk"]
+        )
 
     def delete(self):
 
         if self.exists():
             arcpy.management.Delete(self.relclasspath)
 
-    def create(self):
+    def exists(self):
+        if arcpy.Exists(self.relclasspath):
+            return True
+        else:
+            return False
+    
+    def _build_paths(self):
+        origin = os.path.join(self.geodatabase, self.origin_class)
+        dest = os.path.join(self.geodatabase, self.destination_class)
+        return origin, dest
 
-        if self.attributed != 'NONE':
-            raise ValueError('Not ready for attributed yet')
+    def _sanitize_params(self):
+        return {
+            "relationship_type": (self.relationship_type or 'SIMPLE').upper(),
+            "cardinality": (self.cardinality or 'ONE_TO_MANY').upper(),
+            "forward_label": self.forward_label or "",
+            "backward_label": self.backward_label or "",
+            "origin_pk": self.origin_primary_key or "",
+            "origin_fk": self.origin_foreign_key or "",
+            "dest_pk": self.destination_primary_key or "",  # REQUIRED
+            "dest_fk": self.destination_foreign_key or "",
+            "attributed" : (self.attributed or 'NONE').upper() 
+        }
 
-        origin_path = os.path.join(self.geodatabase
-                                  ,self.origin_class)              
-        dest_path = os.path.join(self.geodatabase
-                                ,self.destination_class)
+    def _validate_params(self
+                        ,p):
 
-        # The order of these inputs and the acceptable values
-        # requires both santitation and a santiarium
-
-        relationship_type = (self.relationship_type or "SIMPLE").upper()
-        cardinality = (self.cardinality or "ONE_TO_MANY").upper()
-        forward_label = self.forward_label or ""
-        backward_label = self.backward_label or ""
-        attributed_table = self.attributed_table if self.attributed else ""
-        origin_pk = self.origin_primary_key or ""
-        origin_fk = ""
-        dest_pk = self.destination_primary_key or ""   # <-- REQUIRED
-        dest_fk = self.destination_foreign_key or ""
-
-        if relationship_type not in {"SIMPLE", "COMPOSITE"}:
+        if p['relationship_type'] not in {'SIMPLE', 'COMPOSITE'}:
             raise ValueError(
-                'Invalid relationship_type: {0}'.format(relationship_type))
-        if cardinality not in {"ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_MANY"}:
-            raise ValueError('Invalid cardinality {0}'.format(cardinality))
+                'Invalid relationship_type: {0}'.format(p['relationship_type'])
+            )
 
-        # This is the ArcGIS Pro signature as of 20260218
-        arcpy.management.CreateRelationshipClass(
-            origin_path,
-            dest_path,
-            self.relclasspath,
-            relationship_type, 
-            forward_label, 
-            backward_label, 
-            self.message_direction,  
-            cardinality,
-            self.attributed,
-            origin_pk,
-            origin_fk,
-            dest_pk,
-            dest_fk
-        )
+        if p['cardinality'] not in {'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_MANY'}:
+            raise ValueError(
+                'Invalid cardinality: {0}'.format(p['cardinality'])
+            )
 
+        if p['attributed'] not in {'NONE', 'ATTRIBUTED'}:
+            raise ValueError(
+                'Invalid attributed: {0}'.format(p['attributed'])
+            )
 
+        if p['attributed'] == 'ATTRIBUTED' and not p['origin_fk']:
+            raise ValueError(
+                'origin_foreign_key required for attributed relationships'
+            )

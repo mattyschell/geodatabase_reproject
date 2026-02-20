@@ -6,7 +6,7 @@ import tempfile
 import filegeodatabase_manager
 import relationshipclass_manager
 
-class XlsxManagerTestCase(unittest.TestCase):
+class RelationshipClassManagerTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
@@ -82,8 +82,9 @@ class XlsxManagerTestCase(unittest.TestCase):
     def test_edescribepretty(self):
 
         self.testrelclass.create()
-        result = self.testrelclass.describe_in_gdb_pretty()
-        print(result)
+        result = self.testrelclass.describe_pretty(
+            self.testrelclass.describe_in_gdb()
+        )
         self.assertIn('name', result)
         self.assertIn('Boroughs_Neighborhoods_Rel', result)
         self.assertIn('cardinality', result)
@@ -91,8 +92,56 @@ class XlsxManagerTestCase(unittest.TestCase):
         # and desc OneToMany
         self.assertIn('OneToMany', result)  
         # line breaks are pretty
-        self.assertGreater(result.count('\n'), 0)      
+        self.assertGreater(result.count('\n'), 0)  
+
+    def test_fcopy(self):
+
+        clone = self.testrelclass.copyto(self.testgdb.gdb) 
+        # different instance
+        self.assertIsNot(self.testrelclass, clone) 
+        # same attributes (works here because same gdb)
+        self.assertEqual(self.testrelclass.__dict__, clone.__dict__) 
+        clone.create()
+        self.assertTrue(clone.exists())
         
+    def test_gdescribe_instance(self):
+
+        result = self.testrelclass.describe_instance()
+        self.assertIsInstance(result, dict)
+        # empty is False
+        self.assertTrue(result)
+
+    def test_fdescribe_instance_pretty(self):
+
+        result = self.testrelclass.describe_pretty(
+            self.testrelclass.describe_instance()
+        )
+        self.assertIn('name', result)
+        self.assertIn('Boroughs_Neighborhoods_Rel', result)
+        self.assertIn('cardinality', result)
+        # note real world ONE_TO_MANY in the instance
+        # isntead of OneToMany returned by arcpy.desc
+        self.assertIn('ONE_TO_MANY', result)  
+        # line breaks are pretty
+        self.assertGreater(result.count('\n'), 0) 
+
+    def test_gcreateattributed(self):
+
+        # basic attributed relationship class
+        # no additional special columns
+        self.testrelclass.attributed = 'ATTRIBUTED'
+        # origin_foreign_key is required for attributed
+        # it "links to the origin_primary_key field in the origin table"
+        self.testrelclass.origin_foreign_key = 'OBJECTID'
+        self.testrelclass.create()
+        self.assertTrue(self.testrelclass.exists())
+        result = self.testrelclass.describe_in_gdb()
+        # again note that the inputs are ATTRIBUTED or 'NONE'
+        # but arcpy.Describe is different. True or False
+        self.assertTrue(result.get("isAttributed"))
+
+
+
 
 if __name__ == '__main__':
     unittest.main()
