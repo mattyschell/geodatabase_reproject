@@ -23,10 +23,16 @@ class RelationshipClassManagerTestCase(unittest.TestCase):
         # create in setup    
         self.testgdbpath    = os.path.join(self.tempdir
                                           ,'test.gdb')
-        # our fella
-        self.testrelclassname = 'Boroughs_Neighborhoods_Rel'    
-        self.testoriginkey    = 'BoroCode'    
-        self.testforeignkey   = 'BOROCODE'            
+        self.testrelclassname = 'Boroughs_Neighborhoods_Rel' 
+        # for standard relationship classes this is a direct link
+        # nybb.BoroCode <--> neighborhoods.BOROCODE   
+        # the columns live on the base tables
+        self.testoriginprimarykey = 'BoroCode'    
+        self.testoriginforeignkey = 'BOROCODE'    
+        # for many_to_many and attributed relationship classes the links shift
+        # nybb.BoroCode <---> relationshipclass.origin_foreign_key
+        # relationshipclass.destination_foreign_key <-->
+        #                                neighborhoods.destination_primary_key        
 
     def setUp(self):
 
@@ -44,8 +50,8 @@ class RelationshipClassManagerTestCase(unittest.TestCase):
 
         self.testrelclass.origin_class = self.boroughfc
         self.testrelclass.destination_class = self.neighborhoodtable
-        self.testrelclass.origin_primary_key = self.testoriginkey
-        self.testrelclass.destination_foreign_key = self.testforeignkey
+        self.testrelclass.origin_primary_key = self.testoriginprimarykey
+        self.testrelclass.origin_foreign_key = self.testoriginforeignkey
 
     def tearDown(self):
 
@@ -127,18 +133,30 @@ class RelationshipClassManagerTestCase(unittest.TestCase):
 
     def test_gcreateattributed(self):
 
-        # basic attributed relationship class
-        # no additional special columns
+        # standard attributed relationship class
         self.testrelclass.attributed = 'ATTRIBUTED'
-        # origin_foreign_key is required for attributed
-        # it "links to the origin_primary_key field in the origin table"
-        self.testrelclass.origin_foreign_key = 'OBJECTID'
+        # create a column on the attributed table named BOROCODE 
+        # this will link to Borough.BoroCode 
+        # which is in test setup as self.testrelclass.origin_primary_key 
+        self.testrelclass.origin_foreign_key = 'BoroCode'
+        # create a column on the attributed table named NEIHBORHOODOBJECTID
+        self.testrelclass.destination_foreign_key = 'NEIGHBORHOODOBJECTID'
+        # which links to objectid on neighborhoods
+        self.testrelclass.destination_primary_key = 'OBJECTID'
+        # note that neighborhoods.BOROCODE is defunct in this example
         self.testrelclass.create()
         self.assertTrue(self.testrelclass.exists())
         result = self.testrelclass.describe_in_gdb()
-        # again note that the inputs are ATTRIBUTED or 'NONE'
-        # but arcpy.Describe is different. True or False
+        # arcpy.Describe is True of False. Create takes ATTRIBUTED or 'NONE'
         self.assertTrue(result.get("isAttributed"))
+
+    def test_hcreatecomposite(self):
+
+        self.testrelclass.relationship_type = 'COMPOSITE'
+        self.testrelclass.create()
+        self.assertTrue(self.testrelclass.exists())
+        self.assertTrue(self.testrelclass.describe_in_gdb().get("isComposite"))
+
 
 
 

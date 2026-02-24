@@ -39,6 +39,11 @@ class RelationshipClassManager(object):
         self.origin_foreign_key      = ''
         self.destination_primary_key = ''
 
+        # rare: attributed relationship class with third junction table 
+        self.relationship_table = ''
+        self.attribute_fields = []
+
+
     def copyto(self
               ,geodatabase):
 
@@ -66,7 +71,8 @@ class RelationshipClassManager(object):
         info = {
             "name": desc.name,
             "path": self.relclasspath,
-            "dataType": desc.dataType,
+            "isComposite": desc.isComposite,
+            "dataType": desc.dataType, # always RelationshipClass
             "originClassNames": desc.originClassNames,
             "destinationClassNames": desc.destinationClassNames,
             "cardinality": desc.cardinality,
@@ -98,21 +104,33 @@ class RelationshipClassManager(object):
         self._validate_params(params)
 
         # This is the ArcGIS Pro signature as of 20260218
-        arcpy.management.CreateRelationshipClass(
-            origin_path
-           ,dest_path
-           ,self.relclasspath
-           ,params["relationship_type"]
-           ,params["forward_label"]
-           ,params["backward_label"]
-           ,self.message_direction
-           ,params["cardinality"]
-           ,params["attributed"]
-           ,params["origin_pk"]
-           ,params["origin_fk"]
-           ,params["dest_pk"]
-           ,params["dest_fk"]
-        )
+        try:
+            arcpy.management.CreateRelationshipClass(
+                origin_path,
+                dest_path,
+                self.relclasspath,
+                params["relationship_type"],
+                params["forward_label"],
+                params["backward_label"],
+                self.message_direction,
+                params["cardinality"],
+                params["attributed"],
+                params["origin_pk"],
+                params["origin_fk"],
+                params["dest_pk"],
+                params["dest_fk"],
+            )
+
+        except Exception as ex:
+            msg = (
+                'CreateRelationshipClass failed.\n'
+                f'Origin path: {origin_path}\n'
+                f'Destination path: {dest_path}\n'
+                f'Relationship class: {self.relclasspath}\n'
+                f'Parameters: {params}\n'
+                f'Error: {ex}'
+            )
+            raise RuntimeError(msg)
 
     def delete(self):
 
