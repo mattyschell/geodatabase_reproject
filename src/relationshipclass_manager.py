@@ -103,34 +103,55 @@ class RelationshipClassManager(object):
         params = self._sanitize_params()
         self._validate_params(params)
 
-        # This is the ArcGIS Pro signature as of 20260218
-        try:
-            arcpy.management.CreateRelationshipClass(
-                origin_path,
-                dest_path,
-                self.relclasspath,
-                params["relationship_type"],
-                params["forward_label"],
-                params["backward_label"],
-                self.message_direction,
-                params["cardinality"],
-                params["attributed"],
-                params["origin_pk"],
-                params["origin_fk"],
-                params["dest_pk"],
-                params["dest_fk"],
-            )
+        
+        if not self.relationship_table:
+            try:
+                # This is the ArcGIS Pro signature as of 20260218
+                arcpy.management.CreateRelationshipClass(
+                    origin_path
+                   ,dest_path
+                   ,self.relclasspath
+                   ,params["relationship_type"]
+                   ,params["forward_label"]
+                   ,params["backward_label"]
+                   ,self.message_direction
+                   ,params["cardinality"]
+                   ,params["attributed"]
+                   ,params["origin_pk"]
+                   ,params["origin_fk"]
+                   ,params["dest_pk"]
+                   ,params["dest_fk"]
+                )
 
-        except Exception as ex:
-            msg = (
-                'CreateRelationshipClass failed.\n'
-                f'Origin path: {origin_path}\n'
-                f'Destination path: {dest_path}\n'
-                f'Relationship class: {self.relclasspath}\n'
-                f'Parameters: {params}\n'
-                f'Error: {ex}'
-            )
-            raise RuntimeError(msg)
+            except Exception as ex:
+                msg = (
+                    'CreateRelationshipClass failed.\n'
+                    f'Origin path: {origin_path}\n'
+                    f'Destination path: {dest_path}\n'
+                    f'Relationship class: {self.relclasspath}\n'
+                    f'Parameters: {params}\n'
+                    f'Error: {ex}'
+                )
+                raise RuntimeError(msg)
+        else:
+            relationship_table = os.path.join(self.geodatabase
+                                             ,self.relationship_table)
+            arcpy.management.TableToRelationshipClass(   
+                origin_path
+               ,dest_path
+               ,self.relclasspath
+               ,params["relationship_type"]
+               ,params["forward_label"]
+               ,params["backward_label"]
+               ,self.message_direction
+               ,params["cardinality"]
+               ,relationship_table
+               ,self.attribute_fields
+               ,params["origin_pk"]
+               ,params["origin_fk"]
+               ,params["dest_pk"]
+               ,params["dest_fk"]
+            )        
 
     def delete(self):
 
@@ -142,7 +163,37 @@ class RelationshipClassManager(object):
             return True
         else:
             return False
-    
+
+    def hasglobalid(self):
+
+        if (self.attributed != 'NONE') and self.relclasspath:
+            fields = {f.name.lower(): f for f in arcpy.ListFields(
+                self.relclasspath)}
+            if 'globalid' not in fields:
+                return False
+            if fields['globalid'].type.lower() not in ('guid'
+                                                      ,'globalid'
+                                                      ,'uuid'):
+                return False
+            # ESRI managed GlobalID fields are required and non-nullable
+            if (not fields['globalid'].required 
+                and fields['globalid'].isNullable):
+                return False
+            return True
+        else:
+            return False
+
+    def addglobalid(self):
+
+        if (self.attributed != 'NONE') and self.relclasspath:
+            arcpy.management.AddGlobalIDs(self.relclasspath)
+        else:
+            raise ValueError(
+                'Cant add globalids to attibuted: {0}, {1}'.format(
+                    self.attributed
+                   ,self.relclasspath)
+            )
+
     def _build_paths(self):
         origin = os.path.join(self.geodatabase, self.origin_class)
         dest = os.path.join(self.geodatabase, self.destination_class)

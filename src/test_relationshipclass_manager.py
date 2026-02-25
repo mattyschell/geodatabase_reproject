@@ -157,8 +157,81 @@ class RelationshipClassManagerTestCase(unittest.TestCase):
         self.assertTrue(self.testrelclass.exists())
         self.assertTrue(self.testrelclass.describe_in_gdb().get("isComposite"))
 
+    def test_icreatefromrelationship(self):
 
+        # Table To Relationship Class
+        # uses an input junction table (aka relationship table) to populate 
+        # additional columns in the attributed relationship class
+        # The input junction table here is named NEIGHBORHOODDATA
+        # it contains a column PERCENTBOROCOOLNESS indicating what 
+        # percent of borough rizz comes from that neighborhood
+        # That column (and data) will be added to the attributed rel class
+        # The input relationship table NEIGHBORHOODDATA does NOT participate
+        # in the relationship going forward.
+        # As the number of commented lines here indicates this thing is messy.
+        # use judiciously
+        self.testrelclass.relationship_table = 'neighborhooddata' 
+        self.testrelclass.attribute_fields = ['PERCENTBOROCOOLNESS']
+        # see createattributed test above for these bad boys
+        # some of these are already set. Re-stating them for obviousness
+        self.testrelclass.attributed = 'ATTRIBUTED'
+        self.testrelclass.origin_foreign_key = 'BOROCODE'
+        self.testrelclass.destination_foreign_key = 'Name'
+        self.testrelclass.destination_primary_key = 'Name'
+        self.testrelclass.create()
+        self.assertTrue(self.testrelclass.exists())
+        self.assertTrue(
+            self.testrelclass.describe_in_gdb().get("isAttributed")
+        )
+        # I havent tested edits against this 
+        # PERCENTBOROCOOLNESS | BOROCODE | Name            | RID 
+        # 10                  | 3        | Red Hook        | 1
+        # 100                 | 4        | Jackson Heights | 2
 
+    def test_jcreatefromrelationshipwithglobalid(self):
+
+        # This is the big boss battle:
+        # given an existing attributed relationshipclass with globalids,
+        # preserve the globalids
+        # 1. Create a new column named NOTGLOBALID
+        # 2. Populate with '{globalid}'s
+        # 3. Use TableToRelationshipClass including NOTGLOBALID
+        # 4. Add new GLOBALID to the attributed relationship class
+        # 5. (out of scope here) Join NOTGLOBALID for archive migration
+        # We start at step 3 in the test 
+        self.testrelclass.relationship_table = 'neighborhooddata' 
+        self.testrelclass.attribute_fields = ['PERCENTBOROCOOLNESS'
+                                             ,'NOTGLOBALID']
+        self.testrelclass.attributed = 'ATTRIBUTED'
+        self.testrelclass.origin_foreign_key = 'BOROCODE'
+        self.testrelclass.destination_foreign_key = 'Name'
+        self.testrelclass.destination_primary_key = 'Name'
+        self.testrelclass.create()
+        self.assertTrue(self.testrelclass.exists())
+        self.assertTrue(
+            self.testrelclass.describe_in_gdb().get("isAttributed")
+        )
+        # PERCENTBOROCOOLNESS | NOTGLOBALID | BOROCODE | Name            | RID 
+        # 10                  | {abc123}    | 3        | Red Hook        | 1
+        # 100                 | {xyz890}    | 4        | Jackson Heights | 2
+
+    def test_khasglobalid(self):
+
+        # not much code coverage on this one
+        self.testrelclass.create()
+        self.assertFalse(self.testrelclass.hasglobalid())
+
+    def test_laddglobalid(self):
+
+        # CreateRelationshipClass and TableToRelationshipClass do not 
+        # add globalids to baby relationship classes. We always require 
+        # globalids on any attributed relationship class
+        self.testrelclass.attributed = 'ATTRIBUTED'
+        self.testrelclass.destination_foreign_key = 'NEIGHBORHOODOBJECTID'
+        self.testrelclass.destination_primary_key = 'OBJECTID'
+        self.testrelclass.create()
+        self.testrelclass.addglobalid()
+        self.assertTrue(self.testrelclass.hasglobalid())
 
 
 if __name__ == '__main__':
