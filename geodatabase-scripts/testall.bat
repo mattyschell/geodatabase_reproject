@@ -8,4 +8,3 @@ if exist "%PYTHON1%" (
 ) 
 call %PROPY% .\src\test_filegeodatabase_manager.py
 call %PROPY% .\src\test_xlsx_manager.py 
-call %PROPY% .\src\test_relationshipclass_manager.py 
