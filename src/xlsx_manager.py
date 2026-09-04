@@ -1,8 +1,8 @@
 import os
 import arcpy
 import openpyxl
-from pathlib import Path
 import tempfile
+import shutil
 
 import filegeodatabase_manager
 
@@ -16,6 +16,14 @@ class ExcelFile(object):
         self._license_checked_out = False
         self._closed              = False
 
+    def __enter__(self):
+        self.checkoutlicense()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.checkinlicense()
+        return False
+
     def checkoutlicense(self):
         if not self._license_checked_out:
             if arcpy.CheckExtension("Foundation") == "Available":
@@ -26,10 +34,12 @@ class ExcelFile(object):
 
     def checkinlicense(self):
         if not self._closed:
-            if self._license_checked_out:
-                arcpy.CheckInExtension("Foundation")
+            try:
+                if self._license_checked_out:
+                    arcpy.CheckInExtension("Foundation")
+            finally:
                 self._license_checked_out = False
-            self._closed = True
+                self._closed = True
 
     def exists(self):
 
@@ -196,23 +206,29 @@ class ExcelFile(object):
         # create and load an output geodatabase
         self.generate_to_geodatabase(gdbout)
 
-        # we dont care about this thing (yet?) make it and trash it
+        # The cross-reference GDB is an implementation detail and must not
+        # collide with another reprojection or survive a failed load.
+        tempdir = tempfile.mkdtemp(prefix='xlsx_manager_')
         object_map_gdb = filegeodatabase_manager.LocalGDB(
-            os.path.join(tempfile.gettempdir()
-                        ,'old_to_new.gdb'))
+            os.path.join(tempdir, 'old_to_new.gdb'))
 
-        if object_map_gdb.exists():
-            object_map_gdb.clean()
+        try:
+            arcpy.topographic.CreateCrossReferenceGeodatabase(
+                gdbin,
+                gdbout,
+                object_map_gdb.gdb
+            )
 
-        arcpy.topographic.CreateCrossReferenceGeodatabase(gdbin
-                                                         ,gdbout
-                                                         ,object_map_gdb.gdb)
-
-        arcpy.topographic.LoadData(object_map_gdb.gdb
-                                  ,gdbin
-                                  ,gdbout)
-
-        object_map_gdb.clean()
+            arcpy.topographic.LoadData(
+                object_map_gdb.gdb,
+                gdbin,
+                gdbout
+            )
+        finally:
+            try:
+                object_map_gdb.clean()
+            finally:
+                shutil.rmtree(tempdir, ignore_errors=True)
         
     
 

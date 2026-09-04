@@ -2,6 +2,7 @@ import unittest
 import os
 from pathlib import Path
 import tempfile
+from unittest import mock
 
 import filegeodatabase_manager
 
@@ -43,6 +44,56 @@ class FileGeodatabaseTestCase(unittest.TestCase):
         self.testgdb.create()
         self.assertFalse(self.testgdb.has_locks())
         self.testgdb.clean()
+
+    def test_nonexistent_gdb(self):
+
+        nonexistent = filegeodatabase_manager.LocalGDB(
+            os.path.join(self.tempdir, 'does-not-exist.gdb')
+        )
+
+        self.assertFalse(nonexistent.exists())
+        self.assertFalse(nonexistent.has_locks())
+        nonexistent.clean()
+
+    def test_existing_target(self):
+
+        self.testgdb.create()
+
+        with mock.patch.object(
+            filegeodatabase_manager.arcpy.management,
+            'CreateFileGDB',
+            side_effect=RuntimeError('target already exists')
+        ) as create_file_gdb:
+            with self.assertRaisesRegex(RuntimeError, 'target already exists'):
+                self.testgdb.create()
+
+        create_file_gdb.assert_called_once_with(
+            self.testgdb.path,
+            self.testgdb.name
+        )
+
+    def test_lock_file(self):
+
+        self.testgdb.create()
+        lock_file = Path(self.testgdb.gdb, 'test.lock')
+        lock_file.touch()
+
+        self.assertTrue(self.testgdb.has_locks())
+
+        lock_file.unlink()
+        self.assertFalse(self.testgdb.has_locks())
+
+    def test_cleanup_failure_is_propagated(self):
+
+        self.testgdb.create()
+
+        with mock.patch.object(
+            filegeodatabase_manager.shutil,
+            'rmtree',
+            side_effect=OSError('cleanup failed')
+        ):
+            with self.assertRaisesRegex(OSError, 'cleanup failed'):
+                self.testgdb.clean()
 
     def test_cclean(self):
 

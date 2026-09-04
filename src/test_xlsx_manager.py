@@ -3,6 +3,7 @@ import os
 import openpyxl
 from pathlib import Path
 import tempfile
+from unittest import mock
 
 import filegeodatabase_manager
 import xlsx_manager
@@ -59,6 +60,60 @@ class XlsxManagerTestCase(unittest.TestCase):
         self.testxlsx.checkoutlicense()
         self.testxlsx.checkinlicense()
         self.testxlsx.checkinlicense()
+
+    def test_context_checks_license_in_on_failure(self):
+
+        with mock.patch.object(
+            xlsx_manager.arcpy,
+            'CheckExtension',
+            return_value='Available'
+        ), mock.patch.object(
+            xlsx_manager.arcpy,
+            'CheckOutExtension'
+        ) as checkout, mock.patch.object(
+            xlsx_manager.arcpy,
+            'CheckInExtension'
+        ) as checkin:
+            with self.assertRaisesRegex(RuntimeError, 'operation failed'):
+                with xlsx_manager.ExcelFile(self.testxlsxpath):
+                    raise RuntimeError('operation failed')
+
+        checkout.assert_called_once_with('Foundation')
+        checkin.assert_called_once_with('Foundation')
+
+    def test_srid_values(self):
+
+        manager = xlsx_manager.ExcelFile(self.testxlsxpath)
+        srid_2263 = manager._get_srid_dictionary(2263)
+        srid_6539 = manager._get_srid_dictionary(6539)
+
+        self.assertEqual(srid_2263['C2'], 2263)
+        self.assertEqual(srid_2263['K2'],
+                         '3048.006096012195121164435877261997627062')
+        self.assertEqual(srid_6539['C2'], 6539)
+        self.assertEqual(srid_6539['K2'],
+                         '3048.006096012195121164435877261997627062')
+
+    def test_copygeodatabase_cleans_temporary_gdb_on_failure(self):
+
+        manager = xlsx_manager.ExcelFile(self.testxlsxpath)
+
+        with mock.patch.object(manager, 'generate_to_geodatabase'), \
+             mock.patch.object(
+                 xlsx_manager.arcpy.topographic,
+                 'CreateCrossReferenceGeodatabase'
+             ) as create_cross_reference, \
+             mock.patch.object(
+                 xlsx_manager.arcpy.topographic,
+                 'LoadData',
+                 side_effect=RuntimeError('load failed')
+             ):
+            with self.assertRaisesRegex(RuntimeError, 'load failed'):
+                manager.copygeodatabase('source.gdb', 'target.gdb')
+
+        object_map_path = create_cross_reference.call_args[0][2]
+        self.assertFalse(os.path.exists(object_map_path))
+        self.assertFalse(os.path.exists(os.path.dirname(object_map_path)))
 
     def test_bcreateanddelete(self):
 
